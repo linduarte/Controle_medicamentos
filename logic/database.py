@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 import sqlite3
 import shutil
+import bcrypt
 
 def get_db_path():
     try:
@@ -47,12 +48,12 @@ def connect_db(db_path=None):
 def create_tables():
     with connect_db() as conn:
         cursor = conn.cursor()
-        # Cria tabela de usuários
+        # Cria tabela de usuários (e-mail único, senha hash)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL
             )
         """)
         # Cria tabela de medicamentos com user_id
@@ -76,27 +77,28 @@ def create_tables():
         conn.commit()
 
 # Funções de usuário
-def create_user(username, password, db_path=None):
+def create_user(email, password, db_path=None):
     db_path = db_path or get_db_path()
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     with connect_db(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
+        cursor.execute("INSERT INTO users (email, password_hash) VALUES (?, ?)", (email, password_hash))
         conn.commit()
         return cursor.lastrowid
 
-def get_user_by_username(username, db_path=None):
+def get_user_by_email(email, db_path=None):
     db_path = db_path or get_db_path()
     with connect_db(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+        cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
         return cursor.fetchone()
 
-def validate_user(username, password, db_path=None):
+def validate_user(email, password, db_path=None):
     db_path = db_path or get_db_path()
-    with connect_db(db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
-        return cursor.fetchone()
+    user = get_user_by_email(email, db_path)
+    if user and bcrypt.checkpw(password.encode(), user["password_hash"].encode()):
+        return user
+    return None
 
 
 def insert_medication(

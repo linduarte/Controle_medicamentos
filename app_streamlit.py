@@ -1,14 +1,16 @@
 import streamlit as st
 from logic.database import (
     fetch_all_medications, connect_db,
-    create_user, get_user_by_username, validate_user, insert_medication
+    create_user, get_user_by_email, validate_user, insert_medication, update_stock
 )
 from logic.config import get_refill_day, load_config, get_application_version
 from datetime import datetime, timedelta
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import tempfile
+
 from pathlib import Path
+import json
 
 def calculate_days_left(stock, dosage):
     if dosage == 0:
@@ -22,8 +24,12 @@ def get_status_labels(med, days_until_refill):
         alerts.append("⚠ Estoque")
     expiry = datetime.strptime(med["prescription_expiry"], "%Y-%m-%d").date()
     days_to_expiry = (expiry - datetime.today().date()).days
-    if days_to_expiry < 15:
-        alerts.append("⚠ Receita")
+    # Alerta se a receita está para vencer em menos de 15 dias
+    if 0 <= days_to_expiry < 15:
+        alerts.append(f"⚠ Receita vence em {days_to_expiry} dia(s)")
+    # Alerta se a receita já venceu
+    if days_to_expiry < 0:
+        alerts.append("❌ Receita médica vencida! Não é possível comprar.")
     return ", ".join(alerts) if alerts else "OK"
 
 def generate_pdf_report(alerts, config_data):
@@ -63,35 +69,39 @@ st.write(f"Versão: {get_application_version()}")
 
 if 'user_id' not in st.session_state:
     st.session_state['user_id'] = None
-    st.session_state['username'] = None
+    st.session_state['email'] = None
 
 def login_form():
     st.subheader("Login")
     with st.form("login_form"):
-        username = st.text_input("Usuário")
+        email = st.text_input("E-mail")
         password = st.text_input("Senha", type="password")
         submit = st.form_submit_button("Entrar")
         if submit:
-            user = validate_user(username, password)
+            user = validate_user(email, password)
             if user:
                 st.session_state['user_id'] = user['id']
-                st.session_state['username'] = user['username']
-                st.success(f"Bem-vindo, {username}!")
+                st.session_state['email'] = user['email']
+                st.success(f"Bem-vindo, {email}!")
                 st.rerun()
             else:
-                st.error("Usuário ou senha inválidos.")
+                st.error("E-mail ou senha inválidos.")
 
 def register_form():
     st.subheader("Cadastrar novo usuário")
+    import re
     with st.form("register_form"):
-        username = st.text_input("Novo usuário")
+        email = st.text_input("E-mail")
         password = st.text_input("Nova senha", type="password")
         submit = st.form_submit_button("Cadastrar")
         if submit:
-            if get_user_by_username(username):
-                st.error("Usuário já existe.")
+            email_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+            if not re.match(email_regex, email):
+                st.error("E-mail inválido. Informe um e-mail válido.")
+            elif get_user_by_email(email):
+                st.error("E-mail já cadastrado.")
             else:
-                create_user(username, password)
+                create_user(email, password)
                 st.success("Usuário cadastrado! Faça login.")
 
 if not st.session_state['user_id']:
@@ -100,14 +110,14 @@ if not st.session_state['user_id']:
     register_form()
     st.stop()
 
-# --- App principal (usuário autenticado) ---
-st.success(f"Usuário logado: {st.session_state['username']}")
+st.success(f"Usuário logado: {st.session_state['email']}")
 if st.button("Sair"):
     st.session_state['user_id'] = None
-    st.session_state['username'] = None
+    st.session_state['email'] = None
     st.rerun()
 
 user_id = st.session_state['user_id']
+
 
 config_data = load_config()
 refill_base = get_refill_day()
@@ -115,6 +125,36 @@ next_refill = refill_base
 while next_refill < datetime.today().date():
     next_refill += timedelta(days=30)
 days_until_refill = (next_refill - datetime.today().date()).days
+
+
+# --- Lógica de reabastecimento automático do medicamento de referência ---
+REFERENCE_DAYS = 30
+today = datetime.today().date()
+last_update = config_data.get('last_stock_update')
+if last_update:
+    last_update = datetime.strptime(last_update, "%Y-%m-%d").date()
+else:
+    last_update = None
+
+# Só executa se for o dia da compra e ainda não foi feito hoje
+if today == next_refill and (not last_update or last_update < today):
+    meds_ref = [dict(m) for m in fetch_all_medications(user_id=user_id) if m['is_reference']]
+    for med in meds_ref:
+        # Verifica validade da receita (6 meses = 180 dias)
+        expiry = datetime.strptime(med["prescription_expiry"], "%Y-%m-%d").date()
+        days_to_expiry = (expiry - today).days
+        if days_to_expiry < 0:
+            st.warning(f"❌ Não foi possível reabastecer '{med['name']}' porque a receita está vencida desde {expiry.strftime('%d/%m/%Y')}.")
+            continue
+        if (expiry - timedelta(days=180)) < today:
+            st.warning(f"⚠ Não foi possível reabastecer '{med['name']}' porque a receita tem mais de 6 meses. Atualize a receita para continuar comprando.")
+            continue
+        novo_estoque = med['stock_in_units'] + REFERENCE_DAYS * med['dosage_per_intake']
+        update_stock(med['id'], novo_estoque)
+    # Atualiza o campo last_stock_update no config.json
+    config_data['last_stock_update'] = today.strftime('%Y-%m-%d')
+    with open('config.json', 'w', encoding='utf-8') as f:
+        json.dump(config_data, f, indent=4, ensure_ascii=False)
 
 st.info(f"🗓️ Próxima compra: {next_refill.strftime('%d/%m/%Y')} (em {days_until_refill} dias)")
 
