@@ -1,20 +1,20 @@
-
 from pathlib import Path
 import sys
 import sqlite3
 import shutil
 import bcrypt
 
+
 def get_db_path():
     try:
-        if getattr(sys, 'frozen', False):
+        if getattr(sys, "frozen", False):
             base_path = Path(sys.executable).parent / "data"
             base_path.mkdir(exist_ok=True, parents=True)
             db_path = base_path / "meds.db"
 
             if not db_path.exists():
                 # pyrefly: ignore  # missing-attribute
-                meipass = getattr(sys, '_MEIPASS', None)
+                meipass = getattr(sys, "_MEIPASS", None)
                 if meipass:
                     internal_db = Path(meipass) / "data" / "meds.db"
                 else:
@@ -76,15 +76,20 @@ def create_tables():
         """)
         conn.commit()
 
+
 # Funções de usuário
 def create_user(email, password, db_path=None):
     db_path = db_path or get_db_path()
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     with connect_db(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO users (email, password_hash) VALUES (?, ?)", (email, password_hash))
+        cursor.execute(
+            "INSERT INTO users (email, password_hash) VALUES (?, ?)",
+            (email, password_hash),
+        )
         conn.commit()
         return cursor.lastrowid
+
 
 def get_user_by_email(email, db_path=None):
     db_path = db_path or get_db_path()
@@ -92,6 +97,7 @@ def get_user_by_email(email, db_path=None):
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
         return cursor.fetchone()
+
 
 def validate_user(email, password, db_path=None):
     db_path = db_path or get_db_path()
@@ -113,12 +119,13 @@ def insert_medication(
     status,
     is_reference,
     prescription_expiry,
-    db_path=None
+    db_path=None,
 ):
     db_path = db_path or get_db_path()
     with connect_db(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO medications (
                 user_id,
                 name,
@@ -132,20 +139,24 @@ def insert_medication(
                 is_reference,
                 prescription_expiry
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            user_id,
-            name,
-            dosage_per_intake,
-            med_type,
-            schedule,
-            packaging,
-            quantity_per_package,
-            stock_in_units,
-            status,
-            is_reference,
-            prescription_expiry
-        ))
+        """,
+            (
+                user_id,
+                name,
+                dosage_per_intake,
+                med_type,
+                schedule,
+                packaging,
+                quantity_per_package,
+                stock_in_units,
+                status,
+                is_reference,
+                prescription_expiry,
+            ),
+        )
         conn.commit()
+
+
 def fetch_all_medications(user_id=None, db_path=None):
     db_path = db_path or get_db_path()
     with connect_db(db_path) as conn:
@@ -155,22 +166,30 @@ def fetch_all_medications(user_id=None, db_path=None):
         else:
             cursor.execute("SELECT * FROM medications")
         return cursor.fetchall()
+
+
 def get_medication_by_id(med_id, db_path=None):
     db_path = db_path or get_db_path()
     with connect_db(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM medications WHERE id = ?", (med_id,))
         return cursor.fetchone()
+
+
 def update_stock(med_id, new_stock, db_path=None):
     db_path = db_path or get_db_path()
     with connect_db(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE medications SET stock_in_units = ? WHERE id = ?", (new_stock, med_id))  # noqa: E501
+        cursor.execute(
+            "UPDATE medications SET stock_in_units = ? WHERE id = ?",
+            (new_stock, med_id),
+        )  # noqa: E501
         conn.commit()
+
+
 def delete_medication(med_id, db_path=None):
     db_path = db_path or get_db_path()
     with connect_db(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM medications WHERE id = ?", (med_id,))
         conn.commit()
-

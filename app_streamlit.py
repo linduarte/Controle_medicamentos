@@ -1,7 +1,12 @@
 import streamlit as st
 from logic.database import (
-    fetch_all_medications, connect_db,
-    create_user, get_user_by_email, validate_user, insert_medication, update_stock
+    fetch_all_medications,
+    connect_db,
+    create_user,
+    get_user_by_email,
+    validate_user,
+    insert_medication,
+    update_stock,
 )
 from logic.config import get_refill_day, load_config, get_application_version
 from datetime import datetime, timedelta
@@ -12,10 +17,12 @@ import tempfile
 from pathlib import Path
 import json
 
+
 def calculate_days_left(stock, dosage):
     if dosage == 0:
         return float("inf")
     return stock / dosage
+
 
 def get_status_labels(med, days_until_refill):
     alerts = []
@@ -32,6 +39,7 @@ def get_status_labels(med, days_until_refill):
         alerts.append("❌ Receita médica vencida! Não é possível comprar.")
     return ", ".join(alerts) if alerts else "OK"
 
+
 def generate_pdf_report(alerts, config_data):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         path = Path(tmp.name)
@@ -40,7 +48,9 @@ def generate_pdf_report(alerts, config_data):
     c.setFont("Helvetica-Bold", 14)
     c.drawString(50, height - 50, "Relatório de Medicamentos com Alerta")
     c.setFont("Helvetica", 10)
-    c.drawString(50, height - 65, f"Data de geração: {datetime.today().strftime('%d/%m/%Y')}")
+    c.drawString(
+        50, height - 65, f"Data de geração: {datetime.today().strftime('%d/%m/%Y')}"
+    )
     y = height - 100
     c.setFont("Helvetica-Bold", 11)
     c.drawString(50, y, "Nome")
@@ -59,17 +69,21 @@ def generate_pdf_report(alerts, config_data):
     c.setFont("Helvetica-Oblique", 10)
     c.drawString(50, y, f"Total de alertas: {len(alerts)} medicamento(s)")
     y -= 20
-    c.drawString(50, y, f"Data inicial do controle: {config_data.get('initial_date', '-')}")
+    c.drawString(
+        50, y, f"Data inicial do controle: {config_data.get('initial_date', '-')}"
+    )
     c.save()
     return path
+
 
 # --- Autenticação de Usuário ---
 st.title("Controle de Medicamentos")
 st.write(f"Versão: {get_application_version()}")
 
-if 'user_id' not in st.session_state:
-    st.session_state['user_id'] = None
-    st.session_state['email'] = None
+if "user_id" not in st.session_state:
+    st.session_state["user_id"] = None
+    st.session_state["email"] = None
+
 
 def login_form():
     st.subheader("Login")
@@ -80,16 +94,18 @@ def login_form():
         if submit:
             user = validate_user(email, password)
             if user:
-                st.session_state['user_id'] = user['id']
-                st.session_state['email'] = user['email']
+                st.session_state["user_id"] = user["id"]
+                st.session_state["email"] = user["email"]
                 st.success(f"Bem-vindo, {email}!")
                 st.rerun()
             else:
                 st.error("E-mail ou senha inválidos.")
 
+
 def register_form():
     st.subheader("Cadastrar novo usuário")
     import re
+
     with st.form("register_form"):
         email = st.text_input("E-mail")
         password = st.text_input("Nova senha", type="password")
@@ -104,7 +120,8 @@ def register_form():
                 create_user(email, password)
                 st.success("Usuário cadastrado! Faça login.")
 
-if not st.session_state['user_id']:
+
+if not st.session_state["user_id"]:
     login_form()
     st.info("Ou cadastre-se abaixo:")
     register_form()
@@ -112,11 +129,11 @@ if not st.session_state['user_id']:
 
 st.success(f"Usuário logado: {st.session_state['email']}")
 if st.button("Sair"):
-    st.session_state['user_id'] = None
-    st.session_state['email'] = None
+    st.session_state["user_id"] = None
+    st.session_state["email"] = None
     st.rerun()
 
-user_id = st.session_state['user_id']
+user_id = st.session_state["user_id"]
 
 
 config_data = load_config()
@@ -130,7 +147,7 @@ days_until_refill = (next_refill - datetime.today().date()).days
 # --- Lógica de reabastecimento automático do medicamento de referência ---
 REFERENCE_DAYS = 30
 today = datetime.today().date()
-last_update = config_data.get('last_stock_update')
+last_update = config_data.get("last_stock_update")
 if last_update:
     last_update = datetime.strptime(last_update, "%Y-%m-%d").date()
 else:
@@ -138,25 +155,33 @@ else:
 
 # Só executa se for o dia da compra e ainda não foi feito hoje
 if today == next_refill and (not last_update or last_update < today):
-    meds_ref = [dict(m) for m in fetch_all_medications(user_id=user_id) if m['is_reference']]
+    meds_ref = [
+        dict(m) for m in fetch_all_medications(user_id=user_id) if m["is_reference"]
+    ]
     for med in meds_ref:
         # Verifica validade da receita (6 meses = 180 dias)
         expiry = datetime.strptime(med["prescription_expiry"], "%Y-%m-%d").date()
         days_to_expiry = (expiry - today).days
         if days_to_expiry < 0:
-            st.warning(f"❌ Não foi possível reabastecer '{med['name']}' porque a receita está vencida desde {expiry.strftime('%d/%m/%Y')}.")
+            st.warning(
+                f"❌ Não foi possível reabastecer '{med['name']}' porque a receita está vencida desde {expiry.strftime('%d/%m/%Y')}."
+            )
             continue
         if (expiry - timedelta(days=180)) < today:
-            st.warning(f"⚠ Não foi possível reabastecer '{med['name']}' porque a receita tem mais de 6 meses. Atualize a receita para continuar comprando.")
+            st.warning(
+                f"⚠ Não foi possível reabastecer '{med['name']}' porque a receita tem mais de 6 meses. Atualize a receita para continuar comprando."
+            )
             continue
-        novo_estoque = med['stock_in_units'] + REFERENCE_DAYS * med['dosage_per_intake']
-        update_stock(med['id'], novo_estoque)
+        novo_estoque = med["stock_in_units"] + REFERENCE_DAYS * med["dosage_per_intake"]
+        update_stock(med["id"], novo_estoque)
     # Atualiza o campo last_stock_update no config.json
-    config_data['last_stock_update'] = today.strftime('%Y-%m-%d')
-    with open('config.json', 'w', encoding='utf-8') as f:
+    config_data["last_stock_update"] = today.strftime("%Y-%m-%d")
+    with open("config.json", "w", encoding="utf-8") as f:
         json.dump(config_data, f, indent=4, ensure_ascii=False)
 
-st.info(f"🗓️ Próxima compra: {next_refill.strftime('%d/%m/%Y')} (em {days_until_refill} dias)")
+st.info(
+    f"🗓️ Próxima compra: {next_refill.strftime('%d/%m/%Y')} (em {days_until_refill} dias)"
+)
 
 meds = [dict(m) for m in fetch_all_medications(user_id=user_id)]
 for m in meds:
@@ -173,11 +198,7 @@ for med in meds:
     expiry = datetime.strptime(med["prescription_expiry"], "%Y-%m-%d").date()
     days_to_expiry = (expiry - datetime.today().date()).days
     if days_left < days_until_refill or days_to_expiry < 15:
-        alerts.append([
-            med["name"],
-            f"{days_left:.1f} dias",
-            f"{days_to_expiry} dias"
-        ])
+        alerts.append([med["name"], f"{days_left:.1f} dias", f"{days_to_expiry} dias"])
 
 if alerts:
     st.warning(f"{len(alerts)} medicamento(s) requer(em) atenção!")
@@ -200,8 +221,17 @@ with st.expander("➕ Adicionar Medicamento"):
         if submitted:
             try:
                 insert_medication(
-                    user_id, name, dose, "Tablet", "daily", "box",
-                    30, stock, "Active", 0, validity.strftime("%Y-%m-%d")
+                    user_id,
+                    name,
+                    dose,
+                    "Tablet",
+                    "daily",
+                    "box",
+                    30,
+                    stock,
+                    "Active",
+                    0,
+                    validity.strftime("%Y-%m-%d"),
                 )
                 st.success("Medicamento adicionado!")
                 st.rerun()
@@ -219,17 +249,30 @@ with st.expander("✏️ Editar Medicamento"):
                 new_name = st.text_input("Nome", value=med["name"])
                 new_dose = st.number_input("Dosagem", value=med["dosage_per_intake"])
                 new_stock = st.number_input("Estoque", value=med["stock_in_units"])
-                new_validity = st.date_input("Validade", value=datetime.strptime(med["prescription_expiry"], "%Y-%m-%d"))
+                new_validity = st.date_input(
+                    "Validade",
+                    value=datetime.strptime(med["prescription_expiry"], "%Y-%m-%d"),
+                )
                 submitted = st.form_submit_button("Salvar alterações")
                 if submitted:
                     try:
                         conn = connect_db()
                         cursor = conn.cursor()
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             UPDATE medications
                             SET name=?, dosage_per_intake=?, stock_in_units=?, prescription_expiry=?
                             WHERE id=? AND user_id=?
-                        """, (new_name, new_dose, new_stock, new_validity.strftime("%Y-%m-%d"), edit_id, user_id))
+                        """,
+                            (
+                                new_name,
+                                new_dose,
+                                new_stock,
+                                new_validity.strftime("%Y-%m-%d"),
+                                edit_id,
+                                user_id,
+                            ),
+                        )
                         conn.commit()
                         conn.close()
                         st.success("Medicamento atualizado!")

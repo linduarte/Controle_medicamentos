@@ -6,10 +6,12 @@ DB_PATH = "data/meds.db"
 DAYS_THRESHOLD = 30
 PRESCRIPTION_ALERT_DAYS = 15
 
+
 def calculate_days_left(stock, dosage_per_intake):
     if dosage_per_intake == 0:
-        return float('inf')
+        return float("inf")
     return stock / dosage_per_intake
+
 
 def prescription_expires_soon(expiry_str, threshold_days=15):
     try:
@@ -19,11 +21,13 @@ def prescription_expires_soon(expiry_str, threshold_days=15):
     except ValueError:
         return False, None
 
+
 def calculate_next_refill_date(refill_base):
     today = datetime.today().date()
     while refill_base < today:
         refill_base += timedelta(days=30)
     return refill_base
+
 
 def check_medications():
     print("\n=== 💊 Status dos Medicamentos ===\n")
@@ -52,12 +56,18 @@ def check_medications():
         # Estoque
         days_left = calculate_days_left(stock, dosage)
         if days_left < days_until_refill:
-            print(f"  ❗ Repor antes do próximo ciclo (dura apenas {days_left:.1f} dias)")  # noqa: E501
+            print(
+                f"  ❗ Repor antes do próximo ciclo (dura apenas {days_left:.1f} dias)"
+            )  # noqa: E501
         else:
-            print(f"  ✅ Estoque cobre até o próximo ciclo ({days_left:.1f} dias restantes)")  # noqa: E501
+            print(
+                f"  ✅ Estoque cobre até o próximo ciclo ({days_left:.1f} dias restantes)"
+            )  # noqa: E501
 
         # Receita
-        expires_soon, days_to_expire = prescription_expires_soon(expiry_str, PRESCRIPTION_ALERT_DAYS)  # noqa: E501
+        expires_soon, days_to_expire = prescription_expires_soon(
+            expiry_str, PRESCRIPTION_ALERT_DAYS
+        )  # noqa: E501
         if expires_soon:
             print(f"  ⚠️ Receita vence em {days_to_expire} dias")
         else:
@@ -65,6 +75,6 @@ def check_medications():
 
         print()
 
+
 if __name__ == "__main__":
     check_medications()
-
