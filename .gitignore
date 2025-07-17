@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+
+# VSCode
+.vscode/
+
+# Ambientes virtuais
+.venv/
+venv/
+ENV/
+
+# Banco de dados e dados locais
+data/*.db
+data/*.sqlite3
+
+# Arquivos temporários
+*.tmp
+*.log
+*.bak
+*.swp
+*.swo
+.DS_Store
+
+# Arquivos de dependências
+uv.lock
+
+# Streamlit
+.streamlit/
+
+# Outros
+*.pdf
+*.zip
+*.tar.gz
