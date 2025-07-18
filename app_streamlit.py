@@ -133,6 +133,21 @@ if st.button("Sair"):
     st.session_state["email"] = None
     st.rerun()
 
+# Guia rápido de uso
+with st.expander("ℹ️ Como usar o Controle de Medicamentos?", expanded=True):
+    st.markdown("""
+**Passos básicos para o controle de estoque:**
+
+1. **Adicione seus medicamentos** usando o botão "➕ Adicionar Medicamento". Informe nome, dosagem, estoque e validade da receita.
+2. **Defina um medicamento de referência** (marque como referência ao cadastrar ou editar) para que o sistema calcule o ciclo de compra automática (30 dias).
+3. **Acompanhe o estoque**: O sistema calcula automaticamente quanto tempo o estoque dura e alerta quando for necessário comprar.
+4. **Receitas**: O sistema alerta quando a receita médica está próxima do vencimento ou vencida. Não é possível reabastecer medicamentos com receita vencida ou com mais de 6 meses.
+5. **Reabastecimento automático**: No dia base de compra, o medicamento de referência é reabastecido automaticamente se a receita estiver válida.
+6. **Promoções**: Se comprar mais unidades, basta editar o estoque manualmente.
+
+> Dúvidas? Consulte o README ou entre em contato com o suporte.
+    """)
+
 user_id = st.session_state["user_id"]
 
 
